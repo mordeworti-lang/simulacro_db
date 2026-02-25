@@ -1,20 +1,33 @@
+'use strict';
+
 const { MongoClient } = require('mongodb');
+const { MONGODB_URI, MONGODB_DB } = require('./env');
 
-const client = new MongoClient(process.env.MONGODB_URI);
+let db = null;
 
-let db;
+async function connectMongo() {
+    const client = new MongoClient(MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000, // 5 segundos para conectar
+    });
 
-const connectMongo = async () => {
-    try {
-        await client.connect();
-        db = client.db(process.env.MONGODB_DB);
-        console.log("MongoDB conectado");
-    } catch (error) {
-        console.error("Error conectando a MongoDB:", error);
-        throw error;
+    await client.connect();
+    await client.db('admin').command({ ping: 1 }); // ping para verificar
+
+    db = client.db(MONGODB_DB);
+
+    // Evento para detectar desconexiones
+    client.on('close', () => {
+        console.warn('⚠️  MongoDB desconectado');
+    });
+}
+
+// Esta función la usan los repositories para hacer queries
+function getDb() {
+    if (!db) {
+        throw new Error('MongoDB no está conectado. Llama connectMongo() primero.');
     }
-};
+    return db;
+}
 
 module.exports = connectMongo;
-module.exports.client = client;
-module.exports.getDb = () => db;
+module.exports.getDb = getDb;

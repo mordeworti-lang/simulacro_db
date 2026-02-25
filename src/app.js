@@ -1,8 +1,9 @@
-require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+
+const errorMiddleware = require('./middleware/errorMiddleware');
 
 const simulacroRoutes = require('./routes/simulacro');
 const doctorsRoutes = require('./routes/doctors');
@@ -13,60 +14,65 @@ const authRoutes = require('./routes/auth');
 const app = express();
 
 // =========================
-// MIDDLEWARES
+// SECURITY MIDDLEWARES
 // =========================
 app.use(helmet());
 
+// CORRECCIÓN: CORS flexible para desarrollo/producción
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true
+    origin: process.env.FRONTEND_URL || '*', // '*' solo en desarrollo
+    credentials: process.env.FRONTEND_URL ? true : false // credentials no funciona con '*'
 }));
 
+// =========================
+// BODY PARSERS
+// =========================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // =========================
-// RATE LIMITING GENERAL
+// RATE LIMITING
 // =========================
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
     max: 100,
-    message: "Demasiadas solicitudes desde esta IP."
+    standardHeaders: true,   // NUEVO: headers estándar RateLimit-*
+    legacyHeaders: false,     // NUEVO: desactiva X-RateLimit-* obsoletos
+    message: {
+        ok: false,
+        error: "Demasiadas solicitudes, intenta en 15 minutos"
+    }
 });
 
-app.use('/api', limiter);
-
-// =========================
-// RATE LIMIT LOGIN
-// =========================
+// CORRECCIÓN: loginLimiter ANTES de montar las rutas de auth
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
-    message: "Demasiados intentos de login."
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        ok: false,
+        error: "Demasiados intentos de login, intenta en 15 minutos"
+    }
 });
 
-app.use('/api/auth/login', loginLimiter);
+app.use('/api', apiLimiter);
+app.use('/api/auth/login', loginLimiter); // Aplica solo a login
 
 // =========================
-// ENDPOINT PRINCIPAL
+// HEALTH CHECK
 // =========================
-app.get('/', (req, res) => {
-    res.json({
-        message: "API SaludPlus - Gestión Híbrida SQL/NoSQL",
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: "OK",
+        service: "SaludPlus API",
         version: "1.0.0",
-        author: "Jhon Jaramillo",
-        endpoints: {
-            auth: "/api/auth",
-            simulacro: "/api/simulacro",
-            doctors: "/api/doctors",
-            reports: "/api/reports",
-            patients: "/api/patients"
-        }
+        timestamp: new Date().toISOString() // NUEVO: útil para debugging
     });
 });
 
 // =========================
-// RUTAS
+// ROUTES
 // =========================
 app.use('/api/auth', authRoutes);
 app.use('/api/simulacro', simulacroRoutes);
@@ -75,24 +81,18 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/patients', patientsRoutes);
 
 // =========================
-// 404
+// 404 HANDLER
 // =========================
 app.use((req, res) => {
     res.status(404).json({
-        success: false,
-        message: 'Endpoint no encontrado'
+        ok: false,           // CORRECCIÓN: usa 'ok' para consistencia con el resto del proyecto
+        error: `Ruta no encontrada: ${req.method} ${req.originalUrl}`
     });
 });
 
 // =========================
-// ERROR HANDLER
+// GLOBAL ERROR HANDLER (siempre al final)
 // =========================
-app.use((err, req, res, next) => {
-    console.error(err);
-    res.status(500).json({
-        success: false,
-        message: 'Error interno del servidor'
-    });
-});
+app.use(errorMiddleware);
 
 module.exports = app;
