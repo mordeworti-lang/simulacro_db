@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -7,6 +8,7 @@ const simulacroRoutes = require('./routes/simulacro');
 const doctorsRoutes = require('./routes/doctors');
 const reportsRoutes = require('./routes/reports');
 const patientsRoutes = require('./routes/patients');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 
@@ -24,7 +26,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // =========================
-// RATE LIMITING
+// RATE LIMITING GENERAL
 // =========================
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -35,6 +37,17 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // =========================
+// RATE LIMIT LOGIN
+// =========================
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: "Demasiados intentos de login."
+});
+
+app.use('/api/auth/login', loginLimiter);
+
+// =========================
 // ENDPOINT PRINCIPAL
 // =========================
 app.get('/', (req, res) => {
@@ -43,6 +56,7 @@ app.get('/', (req, res) => {
         version: "1.0.0",
         author: "Jhon Jaramillo",
         endpoints: {
+            auth: "/api/auth",
             simulacro: "/api/simulacro",
             doctors: "/api/doctors",
             reports: "/api/reports",
@@ -54,6 +68,7 @@ app.get('/', (req, res) => {
 // =========================
 // RUTAS
 // =========================
+app.use('/api/auth', authRoutes);
 app.use('/api/simulacro', simulacroRoutes);
 app.use('/api/doctors', doctorsRoutes);
 app.use('/api/reports', reportsRoutes);
