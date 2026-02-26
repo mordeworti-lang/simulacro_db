@@ -1,11 +1,9 @@
 'use strict';
 
 const { Router } = require('express');
+const patientController = require('../controllers/patientController');
 const router = Router();
 
-// TODO: implementar patients
-router.get('/', (req, res) => {
-    res.json({ ok: true, message: 'Patients routes - coming soon' });
-});
+router.get('/:email/history', patientController.getHistory);
 
 module.exports = router;
