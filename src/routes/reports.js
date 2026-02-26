@@ -1,11 +1,9 @@
 'use strict';
 
 const { Router } = require('express');
+const reportController = require('../controllers/reportController');
 const router = Router();
 
-// TODO: implementar reports
-router.get('/revenue', (req, res) => {
-    res.json({ ok: true, message: 'Reports routes - coming soon' });
-});
+router.get('/revenue', reportController.getRevenue);
 
 module.exports = router;
